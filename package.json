@@ -1,0 +1,37 @@
+{
+  "license": "GPL-3.0",
+  "name": "dgg0sc",
+  "version": "0.1.0",
+  "scripts": {
+    "build": "hardhat compile",
+    "test": "hardhat test"
+  },
+  "dependencies": {
+    "@chainlink/contracts": "^0.4.1",
+    "@nomicfoundation/hardhat-chai-matchers": "^1.0.0",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
+    "@nomicfoundation/hardhat-toolbox": "^1.0.2",
+    "@nomiclabs/hardhat-ethers": "^2.1.0",
+    "@nomiclabs/hardhat-etherscan": "^3.1.0",
+    "@nomiclabs/hardhat-waffle": "^2.0.3",
+    "@nomiclabs/hardhat-web3": "^2.0.0",
+    "@openzeppelin/contracts": "^4.7.0",
+    "@openzeppelin/test-helpers": "^0.5.15",
+    "@typechain/hardhat": "^6.1.2",
+    "@types/mocha": "^9.1.0",
+    "chai": "^4.3.6",
+    "csv-parse": "^5.3.0",
+    "ethereum-waffle": "^3.4.4",
+    "ethers": "^5.6.9",
+    "export-to-csv": "^0.2.1",
+    "hardhat": "^2.10.0",
+    "hardhat-gas-reporter": "^1.0.8",
+    "line-by-line": "^0.1.6",
+    "load-json-file": "^7.0.1",
+    "solc": "^0.8.4",
+    "solhint": "^3.3.4",
+    "solidity-coverage": "^0.7.21",
+    "ts-node": ">=8.0.0",
+    "typescript": ">=4.5.0"
+  }
+}
