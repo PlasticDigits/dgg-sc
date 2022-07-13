@@ -45,17 +45,27 @@ contract DggSale is Ownable, Pausable {
         _;
     }
 
-    receive() external payable {
-        depositBnb();
+    function depositBnb(uint256 _minUsdReceived) external payable {
+        depositBnbFor(msg.sender, _minUsdReceived);
     }
 
-    function depositBnb() public payable {
-        depositBnbFor(msg.sender);
-    }
-
-    function depositBnbFor(address _for) public whenOpen whenNotPaused {
-        //TODO: Sell Bnb for BUSD, get wad
-        uint256 wad = 0;
+    function depositBnbFor(address _for, uint256 _minUsdReceived)
+        public
+        payable
+        whenOpen
+        whenNotPaused
+    {
+        address[] memory path = new address[](2);
+        path[1] = AMM_ROUTER.WETH();
+        path[2] = address(BUSD);
+        uint256 wad = BUSD.balanceOf(address(this));
+        AMM_ROUTER.swapExactETHForTokens{value: msg.value}(
+            _minUsdReceived,
+            path,
+            address(this),
+            block.timestamp
+        );
+        wad -= BUSD.balanceOf(address(this));
         _depositUsd(wad, _for);
     }
 
