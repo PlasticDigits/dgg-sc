@@ -40,7 +40,7 @@ contract DggSale is Ownable, Pausable {
     modifier whenOpen() {
         require(
             block.timestamp <= endEpoch && block.timestamp >= startEpoch,
-            "GemSale: Not Open"
+            "DggSale: Not Open"
         );
         _;
     }
@@ -56,8 +56,8 @@ contract DggSale is Ownable, Pausable {
         whenNotPaused
     {
         address[] memory path = new address[](2);
-        path[1] = AMM_ROUTER.WETH();
-        path[2] = address(BUSD);
+        path[0] = AMM_ROUTER.WETH();
+        path[1] = address(BUSD);
         uint256 wad = BUSD.balanceOf(address(this));
         AMM_ROUTER.swapExactETHForTokens{value: msg.value}(
             _minUsdReceived,
@@ -65,7 +65,7 @@ contract DggSale is Ownable, Pausable {
             address(this),
             block.timestamp
         );
-        wad -= BUSD.balanceOf(address(this));
+        wad = BUSD.balanceOf(address(this)) - wad;
         _depositUsd(wad, _for);
     }
 

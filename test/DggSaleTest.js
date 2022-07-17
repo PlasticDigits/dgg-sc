@@ -37,5 +37,28 @@ describe("DggSale", function () {
     expect(endEpoch).to.eq(0);
     expect(totalDepositors).to.eq(0);
   });
+  it("Should revert when time not set", async function () {
+    await expect(dggSale.depositBusd(0)).to.be.revertedWith("DggSale: Not Open");
+  });
+  it("Should revert when start epoch is in future", async function () {
+    const currentTime = await time.latest();
+    await dggSale.setWhenOpen(currentTime+3600,currentTime+3600);
+    await expect(dggSale.depositBusd(0)).to.be.revertedWith("DggSale: Not Open");
+  });
+  it("Should revert when end epoch is in past", async function () {
+    const currentTime = await time.latest();
+    await dggSale.setWhenOpen(currentTime-3600,currentTime-3600);
+    await expect(dggSale.depositBusd(0)).to.be.revertedWith("DggSale: Not Open");
+  });
+  it("Should revert when paused", async function () {
+    const currentTime = await time.latest();
+    await dggSale.setWhenOpen(currentTime-3600,currentTime+3600);
+    await dggSale.pause();
+    await expect(dggSale.depositBusd(0)).to.be.revertedWith("Pausable: paused");
+  });
+  it("Should revert when under minDepositWad", async function () {
+    await dggSale.unpause();
+    await expect(dggSale.depositBnb(parseEther("1"),{value:parseEther("0.01")})).to.be.revertedWith("DggSale: Deposit too small");
+  });
 
 })
