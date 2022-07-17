@@ -60,5 +60,12 @@ describe("DggSale", function () {
     await dggSale.unpause();
     await expect(dggSale.depositBnb(parseEther("1"),{value:parseEther("0.01")})).to.be.revertedWith("DggSale: Deposit too small");
   });
+  it("Should revert when over maxDepositWad", async function () {
+    await expect(dggSale.depositBnb(parseEther("1"),{value:parseEther("5")})).to.be.revertedWith("DggSale: Deposit too large");
+  });
+  it("Should revert when over hardcap", async function () {
+    await dggSale.setHardcap(parseEther("200"));
+    await expect(dggSale.depositBnb(parseEther("1"),{value:parseEther("2")})).to.be.revertedWith("DggSale: Over hardcap");
+  });
 
 })

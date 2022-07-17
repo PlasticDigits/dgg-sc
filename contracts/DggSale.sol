@@ -125,13 +125,13 @@ contract DggSale is Ownable, Pausable {
         require(totalDeposits + _usdWad <= hardcap, "DggSale: Over hardcap");
         require(_usdWad >= minDepositWad, "DggSale: Deposit too small");
         trackedAddresses.add(_for);
-        depositedAmount[_for] += msg.value;
+        depositedAmount[_for] += _usdWad;
         require(
             depositedAmount[_for] <= maxDepositWad,
             "DggSale: Deposit too large"
         );
-        totalDeposits += msg.value;
-        emit Deposit(msg.sender, msg.value);
+        totalDeposits += _usdWad;
+        emit Deposit(_for, _usdWad);
     }
 
     function withdraw(address payable _to) external onlyOwner {
