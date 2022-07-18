@@ -105,4 +105,8 @@ contract DggLock is Ownable {
             ((currentTotalDogeRewards * accountDggInitial[_for]) /
                 dggVestInitial) - accountDogeClaimed[_for];
     }
+
+    function withdrawToken(IERC20 _token, address _to) external onlyOwner {
+        _token.transfer(_to, _token.balanceOf(address(this)));
+    }
 }
