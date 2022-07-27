@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
 import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
 import "@openzeppelin/contracts/utils/Checkpoints.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/KeeperCompatibleInterface.sol";
-import "./czodiac/CZUsd.sol";
+import "./czodiac/CZUSD.sol";
 import "./libs/AmmLibrary.sol";
 import "./interfaces/IAmmFactory.sol";
 import "./interfaces/IAmmPair.sol";
@@ -140,7 +140,7 @@ contract DGOD is
         path[1] = address(0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56); //BUSD
         path[2] = ammRouter.WETH(); //BNB
         path[3] = address(DOGECOIN); //DOGE
-        ammRouter.swapExactTokensForETH(
+        ammRouter.swapExactTokensForTokensSupportingFeeOnTransferTokens(
             czusd.balanceOf(address(this)),
             0,
             path,
