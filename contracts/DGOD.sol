@@ -105,6 +105,22 @@ contract DGOD is
         return lockedCzusdTriggerLevel <= availableWadToSend();
     }
 
+    function getTotalSupplyAtBlock(uint256 _blockNumber)
+        external
+        view
+        returns (uint256 wad_)
+    {
+        return totalSupplyHistory.getAtBlock(_blockNumber);
+    }
+
+    function getBalanceOfAtBlock(address _account, uint256 _blockNumber)
+        external
+        view
+        returns (uint256 wad_)
+    {
+        return balanceOfHistory[_account].getAtBlock(_blockNumber);
+    }
+
     function checkUpkeep(bytes calldata)
         public
         view
