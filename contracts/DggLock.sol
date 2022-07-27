@@ -56,13 +56,25 @@ contract DggLock is Ownable {
         DGG.transfer(address(this), dggVestInitial - preDggVesting);
     }
 
-    function claimDggFor(address _for) external {
+    function claimDggFors(address[] calldata _fors) external {
+        for (uint256 i; i < _fors.length; i++) {
+            claimDggFor(_fors[i]);
+        }
+    }
+
+    function claimDggFor(address _for) public {
         uint256 dggWad = accountDggClaimable(_for);
         accountDggClaimed[_for] += dggWad;
         DGG.transfer(_for, dggWad);
     }
 
-    function claimDogeFor(address _for) external {
+    function claimDogeFors(address[] calldata _fors) external {
+        for (uint256 i; i < _fors.length; i++) {
+            claimDogeFor(_fors[i]);
+        }
+    }
+
+    function claimDogeFor(address _for) public {
         updateTotalDogeRewards();
         uint256 dogeWad = accountDogeClaimable(_for);
         accountDogeClaimed[_for] += dogeWad;

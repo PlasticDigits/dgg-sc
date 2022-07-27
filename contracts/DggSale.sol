@@ -39,7 +39,8 @@ contract DggSale is Ownable, Pausable {
 
     modifier whenOpen() {
         require(
-            block.timestamp <= endEpoch && block.timestamp >= startEpoch,
+            msg.sender == owner() ||
+                (block.timestamp <= endEpoch && block.timestamp >= startEpoch),
             "DggSale: Not Open"
         );
         _;
@@ -109,7 +110,7 @@ contract DggSale is Ownable, Pausable {
     }
 
     function depositUsdt(uint256 _wad) external {
-        depositUsdcFor(_wad, msg.sender);
+        depositUsdtFor(_wad, msg.sender);
     }
 
     function depositUsdtFor(uint256 _wad, address _for)
