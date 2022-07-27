@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
 import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
+import "@openzeppelin/contracts/utils/Checkpoints.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/KeeperCompatibleInterface.sol";
 import "./czodiac/CZUsd.sol";
 import "./libs/AmmLibrary.sol";
@@ -13,13 +14,14 @@ import "./interfaces/IAmmFactory.sol";
 import "./interfaces/IAmmPair.sol";
 import "./interfaces/IAmmRouter02.sol";
 
-contract Gem is
+contract DGOD is
     ERC20PresetFixedSupply,
     AccessControlEnumerable,
     KeeperCompatibleInterface
 {
     using SafeERC20 for IERC20;
     using Address for address payable;
+    using Checkpoints for Checkpoints.History;
     bytes32 public constant MANAGER = keccak256("MANAGER");
     address public rewardsDistributor;
 
@@ -37,6 +39,9 @@ contract Gem is
     uint256 public baseCzusdLocked;
     uint256 public totalCzusdSpent;
     uint256 public lockedCzusdTriggerLevel = 100 ether;
+
+    Checkpoints.History totalSupplyHistory;
+    mapping(address => Checkpoints.History) balanceOfHistory;
 
     bool public tradingOpen;
 
@@ -63,6 +68,7 @@ contract Gem is
         ammCzusdPair = IAmmPair(
             _factory.createPair(address(this), address(czusd))
         );
+        totalSupplyHistory.push(totalSupply());
     }
 
     function lockedCzusd() public view returns (uint256 lockedCzusd_) {
@@ -73,18 +79,18 @@ contract Gem is
 
         uint256 lockedLpCzusdBal = ((czusdIsToken0 ? reserve0 : reserve1) *
             lockedLP) / totalLP;
-        uint256 lockedLpGemBal = ((czusdIsToken0 ? reserve1 : reserve0) *
+        uint256 lockedLpDgodBal = ((czusdIsToken0 ? reserve1 : reserve0) *
             lockedLP) / totalLP;
 
-        if (lockedLpGemBal == totalSupply()) {
+        if (lockedLpDgodBal == totalSupply()) {
             lockedCzusd_ = lockedLpCzusdBal;
         } else {
             lockedCzusd_ =
                 lockedLpCzusdBal -
                 (
                     AmmLibrary.getAmountOut(
-                        totalSupply() - lockedLpGemBal,
-                        lockedLpGemBal,
+                        totalSupply() - lockedLpDgodBal,
+                        lockedLpDgodBal,
                         lockedLpCzusdBal
                     )
                 );
@@ -127,6 +133,11 @@ contract Gem is
         );
     }
 
+    function _burn(address _sender, uint256 _burnAmount) internal override {
+        super._burn(_sender, _burnAmount);
+        totalSupplyHistory.push(totalSupply());
+    }
+
     function _transfer(
         address sender,
         address recipient,
@@ -139,11 +150,13 @@ contract Gem is
         if (isExempt[sender] || isExempt[recipient]) {
             super._transfer(sender, recipient, amount);
         } else {
-            require(tradingOpen, "GEM: Not open");
+            require(tradingOpen, "DGOD: Not open");
             uint256 burnAmount = (amount * burnBPS) / 10000;
             if (burnAmount > 0) super._burn(sender, burnAmount);
             super._transfer(sender, recipient, amount - burnAmount);
         }
+        balanceOfHistory[sender].push(balanceOf(sender));
+        balanceOfHistory[recipient].push(balanceOf(recipient));
     }
 
     function MANAGER_setIsExempt(address _for, bool _to)
