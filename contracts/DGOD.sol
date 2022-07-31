@@ -6,9 +6,10 @@ import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
 import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
-import "@openzeppelin/contracts/utils/Checkpoints.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/KeeperCompatibleInterface.sol";
+import "@openzeppelin/contracts/utils/Checkpoints.sol";
 import "./czodiac/CZUSD.sol";
+import "./AutoRewardPool.sol";
 import "./libs/AmmLibrary.sol";
 import "./interfaces/IAmmFactory.sol";
 import "./interfaces/IAmmPair.sol";
@@ -23,12 +24,14 @@ contract DGOD is
     using Address for address payable;
     using Checkpoints for Checkpoints.History;
     bytes32 public constant MANAGER = keccak256("MANAGER");
-    address public rewardsDistributor;
+    AutoRewardPool public rewardsDistributor;
+
+    Checkpoints.History totalSupplyHistory;
 
     IERC20 public constant DOGECOIN =
         IERC20(0xbA2aE424d960c26247Dd6c32edC70B295c744C43);
 
-    uint256 public burnBPS = 1000;
+    uint256 public burnBPS = 1500;
     uint256 public maxBurnBPS = 3000;
     mapping(address => bool) public isExempt;
 
@@ -40,10 +43,10 @@ contract DGOD is
     uint256 public totalCzusdSpent;
     uint256 public lockedCzusdTriggerLevel = 100 ether;
 
-    Checkpoints.History totalSupplyHistory;
-    mapping(address => Checkpoints.History) balanceOfHistory;
-
     bool public tradingOpen;
+
+    address public projectDistributor;
+    uint256 public projectBasis = 250;
 
     constructor(
         CZUsd _czusd,
@@ -51,7 +54,8 @@ contract DGOD is
         IAmmFactory _factory,
         address _rewardsDistributor,
         uint256 _baseCzusdLocked,
-        uint256 _totalSupply
+        uint256 _totalSupply,
+        address _projectDistributor
     ) ERC20PresetFixedSupply("DogeGod", "DGOD", _totalSupply, msg.sender) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(MANAGER, msg.sender);
@@ -60,6 +64,7 @@ contract DGOD is
         ADMIN_setCzusd(_czusd);
         ADMIN_setAmmRouter(_ammRouter);
         ADMIN_setBaseCzusdLocked(_baseCzusdLocked);
+        MANAGER_setProjectDistributor(_projectDistributor);
         MANAGER_setRewardsDistributor(_rewardsDistributor);
 
         MANAGER_setIsExempt(msg.sender, true);
@@ -113,14 +118,6 @@ contract DGOD is
         return totalSupplyHistory.getAtBlock(_blockNumber);
     }
 
-    function getBalanceOfAtBlock(address _account, uint256 _blockNumber)
-        external
-        view
-        returns (uint256 wad_)
-    {
-        return balanceOfHistory[_account].getAtBlock(_blockNumber);
-    }
-
     function checkUpkeep(bytes calldata)
         public
         view
@@ -144,8 +141,16 @@ contract DGOD is
             czusd.balanceOf(address(this)),
             0,
             path,
-            rewardsDistributor,
+            address(this),
             block.timestamp
+        );
+        DOGECOIN.transfer(
+            projectDistributor,
+            (DOGECOIN.balanceOf(address(this)) * projectBasis) / burnBPS
+        );
+        DOGECOIN.transfer(
+            address(rewardsDistributor),
+            DOGECOIN.balanceOf(address(this))
         );
     }
 
@@ -165,14 +170,17 @@ contract DGOD is
         //Handle burn
         if (isExempt[sender] || isExempt[recipient]) {
             super._transfer(sender, recipient, amount);
+            rewardsDistributor.deposit(recipient, amount);
+            rewardsDistributor.withdraw(sender, amount);
         } else {
             require(tradingOpen, "DGOD: Not open");
             uint256 burnAmount = (amount * burnBPS) / 10000;
-            if (burnAmount > 0) super._burn(sender, burnAmount);
-            super._transfer(sender, recipient, amount - burnAmount);
+            if (burnAmount > 0) _burn(sender, burnAmount);
+            uint256 postBurnAmount = amount - burnAmount;
+            super._transfer(sender, recipient, postBurnAmount);
+            rewardsDistributor.deposit(recipient, postBurnAmount);
+            rewardsDistributor.withdraw(sender, amount);
         }
-        balanceOfHistory[sender].push(balanceOf(sender));
-        balanceOfHistory[recipient].push(balanceOf(recipient));
     }
 
     function MANAGER_setIsExempt(address _for, bool _to)
@@ -191,7 +199,14 @@ contract DGOD is
         public
         onlyRole(MANAGER)
     {
-        rewardsDistributor = _to;
+        rewardsDistributor = AutoRewardPool(_to);
+    }
+
+    function MANAGER_setProjectDistributor(address _to)
+        public
+        onlyRole(MANAGER)
+    {
+        projectDistributor = _to;
     }
 
     function ADMIN_openTrading() external onlyRole(DEFAULT_ADMIN_ROLE) {
