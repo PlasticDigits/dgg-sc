@@ -237,6 +237,13 @@ contract DGOD is
         baseCzusdLocked = _to;
     }
 
+    function ADMIN_setProjectBasis(uint256 _to)
+        public
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
+        projectBasis = _to;
+    }
+
     function ADMIN_setLockedCzusdTriggerLevel(uint256 _to)
         public
         onlyRole(DEFAULT_ADMIN_ROLE)
