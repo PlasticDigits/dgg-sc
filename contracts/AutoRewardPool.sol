@@ -32,7 +32,7 @@ contract AutoRewardPool is Ownable, ReentrancyGuard {
     uint256 public PRECISION_FACTOR;
 
     // autoclaim fee
-    uint256 public autoclaimFee = 1000;
+    uint256 public autoclaimFee = 500;
 
     uint256 public period = 7 days;
 
@@ -56,20 +56,22 @@ contract AutoRewardPool is Ownable, ReentrancyGuard {
     //do not receive rewards
     mapping(address => bool) isRewardExempt;
 
-    //TODO: add total dogecoin claimed by account
-    //TODO:
+    bool isInitialized;
 
     //wants autoclaim
     IterableArrayWithoutDuplicateKeys.Map autoclaimAccounts;
 
-    constructor(
+    function initialize(
         IERC20 _stakedToken,
         address _czusdPair,
         address _feeDistributor
-    ) {
+    ) external onlyOwner {
+        require(!isInitialized);
+        isInitialized = true;
         feeDistributor = _feeDistributor;
         stakedToken = _stakedToken;
         isRewardExempt[_czusdPair] = true;
+        isRewardExempt[msg.sender] = true;
 
         PRECISION_FACTOR = uint256(
             10 **
@@ -250,7 +252,6 @@ contract AutoRewardPool is Ownable, ReentrancyGuard {
                 PRECISION_FACTOR) / totalStaked);
         timestampLast = block.timestamp;
 
-        //TODO: Add dev fees
         uint256 totalRewardsToDistribute = stakedToken.balanceOf(
             address(this)
         ) +
@@ -297,5 +298,9 @@ contract AutoRewardPool is Ownable, ReentrancyGuard {
 
     function setAutoclaimFee(uint256 _to) external onlyOwner {
         autoclaimFee = _to;
+    }
+
+    function setFeeDistributor(address _to) external onlyOwner {
+        feeDistributor = _to;
     }
 }

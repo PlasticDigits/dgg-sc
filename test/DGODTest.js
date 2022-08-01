@@ -11,7 +11,11 @@ const { parseEther, formatEther, defaultAbiCoder } = ethers.utils;
 const { toNum, toBN } = require("./utils/bignumberConverter");
 const parse = require('csv-parse');
 
-const BASE_CZUSD_LP_WAD = parseEther("10000");
+const ITERABLE_ARRAY = "0x4222FFCf286610476B7b5101d55E72436e4a6065";
+const BASE_CZUSD_LP_WAD = parseEther("50018");
+const INITIAL_CZUSD_LP_WAD = parseEther("68518");
+const INITIAL_SUPPLY = parseEther("10000000000");
+const INITIAL_DGOD_LP_WAD = parseEther("7300000000");
 const CZUSD_TOKEN = "0xE68b79e51bf826534Ff37AA9CeE71a3842ee9c70";
 const BUSD_TOKEN = "0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56";
 const DOGECOIN_TOKEN = "0xbA2aE424d960c26247Dd6c32edC70B295c744C43";
@@ -21,11 +25,11 @@ const DEPLOYER = "0x70e1cB759996a1527eD1801B169621C18a9f38F9";
 
 
 describe("DGOD", function () {
-  let owner, manager, trader, trader1, trader2, trader3;
+  let owner, manager, trader, trader1, trader2, trader3, feeDistributor;
   let deployer;
-  let dgod, czusd, busd, dogeCoin, pcsRouter, dgodCzusdPair;
+  let dgod, czusd, busd, dogeCoin, pcsRouter, dgodCzusdPair, autoRewardPool;
   before(async function() {
-    [owner, manager, trader, trader1, trader2, trader3] = await ethers.getSigners();
+    [owner, manager, trader, trader1, trader2, trader3, feeDistributor] = await ethers.getSigners();
     await impersonateAccount(DEPLOYER);
     deployer = await ethers.getSigner(DEPLOYER);
 
@@ -34,31 +38,46 @@ describe("DGOD", function () {
     dogeCoin = await ethers.getContractAt("IERC20", DOGECOIN_TOKEN);
     busd = await ethers.getContractAt("IERC20", BUSD_TOKEN);
 
+    console.log("deploying autorewardpool")
+
+    const AutoRewardPool = await ethers.getContractFactory("AutoRewardPool",{
+          libraries: {
+            IterableArrayWithoutDuplicateKeys: ITERABLE_ARRAY
+          }});
+    autoRewardPool = await AutoRewardPool.deploy();
+
+    console.log("deploying Dgod")
     const Dgod = await ethers.getContractFactory("DGOD");
     dgod = await Dgod.deploy(
       CZUSD_TOKEN,
       PCS_ROUTER,
       PCS_FACTORY,
-      manager.address,
+      autoRewardPool.address,
       BASE_CZUSD_LP_WAD,
-      parseEther("200000")
+      INITIAL_SUPPLY,
+      manager.address
     );
     
+    console.log("getting ammCzusdPair")
     const dgodCzusdPair_address = await dgod.ammCzusdPair();
     dgodCzusdPair = await ethers.getContractAt("IAmmPair", dgodCzusdPair_address);
+
+    console.log("initialize autoRewardPool")
+    autoRewardPool.initialize(dgod.address,dgodCzusdPair.address,manager.address);
     
     await czusd
     .connect(deployer)
     .grantRole(ethers.utils.id("MINTER_ROLE"), dgod.address);
 
-    await czusd.connect(deployer).mint(owner.address,BASE_CZUSD_LP_WAD);
+    await czusd.connect(deployer).mint(owner.address,INITIAL_CZUSD_LP_WAD);
     await dgod.approve(pcsRouter.address,ethers.constants.MaxUint256);
     await czusd.approve(pcsRouter.address,ethers.constants.MaxUint256);
+    console.log("add liq")
     await pcsRouter.addLiquidity(
       czusd.address,
       dgod.address,
-      BASE_CZUSD_LP_WAD,
-      parseEther("200000"),
+      INITIAL_CZUSD_LP_WAD,
+      INITIAL_DGOD_LP_WAD,
       0,
       0,
       dgod.address,
@@ -73,8 +92,8 @@ describe("DGOD", function () {
     const ownerIsExempt = await dgod.isExempt(owner.address);
     const pairIsExempt = await dgod.isExempt(dgodCzusdPair.address);
     const tradingOpen = await dgod.tradingOpen();
-    expect(pairCzusdBal).to.eq(BASE_CZUSD_LP_WAD);
-    expect(pairDgodal).to.eq(parseEther("200000"));
+    expect(pairCzusdBal).to.eq(INITIAL_CZUSD_LP_WAD);
+    expect(pairDgodal).to.eq(INITIAL_DGOD_LP_WAD);
     expect(baseCzusdLocked).to.eq(BASE_CZUSD_LP_WAD);
     expect(totalCzusdSpent).to.eq(0);
     expect(ownerIsExempt).to.be.true;
@@ -93,7 +112,7 @@ describe("DGOD", function () {
         ethers.constants.MaxUint256
     )).to.be.reverted;
   });
-  it("Should burn 10% when buying and increase wad available", async function () {    
+  it("Should burn 15% when buying and increase wad available", async function () {    
     await dgod.ADMIN_openTrading();
     await pcsRouter.connect(trader).swapExactTokensForTokensSupportingFeeOnTransferTokens(
         parseEther("100"),
@@ -109,10 +128,9 @@ describe("DGOD", function () {
     const traderBal = await dgod.balanceOf(trader.address);
     const lpBal = await dgod.balanceOf(dgodCzusdPair.address);
     expect(totalCzusdSpent).to.eq(0);
-    expect(lockedCzusd).to.be.closeTo(parseEther("10010.3"),parseEther("0.1"));
+    expect(lockedCzusd).to.be.closeTo(parseEther("50053.4"),parseEther("0.1"));
     expect(availableWadToSend).to.eq(lockedCzusd.sub(BASE_CZUSD_LP_WAD).sub(totalCzusdSpent));
-    expect(totalSupply).to.be.closeTo(parseEther("199802.4"),parseEther("0.1"));
-    expect(totalSupply).to.eq(traderBal.add(lpBal));
+    expect(totalSupply).to.be.closeTo(parseEther("9998408192"),parseEther("1"));
   });
   it("Should send reward to dev wallet", async function() {
     const devWalletBalInitial = await dogeCoin.balanceOf(manager.address);
@@ -123,10 +141,10 @@ describe("DGOD", function () {
     const totalCzusdSpent = await dgod.totalCzusdSpent();
 
     expect(totalCzusdSpent).to.eq(availableWadToSendInitial);
-    expect(totalCzusdSpent).to.be.closeTo(parseEther("10"),parseEther("1"));
+    expect(totalCzusdSpent).to.be.closeTo(parseEther("35.4"),parseEther("0.1"));
     expect(availableWadToSendFinal).to.eq(0);
     //dogecoin has 8 decimals, divide 18 decimals by 10*10 to get 8.
-    expect(devWalletBalFinal.sub(devWalletBalInitial)).closeTo(parseEther("158").div(10**10),parseEther("1").div(10**10));
+    expect(devWalletBalFinal.sub(devWalletBalInitial)).closeTo(parseEther("90").div(10**10),parseEther("1").div(10**10));
 
   })
 });
