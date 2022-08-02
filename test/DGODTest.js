@@ -3,7 +3,7 @@
 // If you read this, know that I love you even if your mom doesnt <3
 const chai = require('chai');
 const {
-  time, impersonateAccount
+  time, impersonateAccount, mine
 } = require("@nomicfoundation/hardhat-network-helpers");
 const { anyValue } = require("@nomicfoundation/hardhat-chai-matchers/withArgs");
 const { expect } = require("chai");
@@ -133,6 +133,7 @@ describe("DGOD", function () {
     const traderBalFinal = await dgod.balanceOf(trader.address);
     expect(pendingReward).to.eq(0);
     expect(totalStakedFinal.sub(totalStakedInitial)).to.eq(traderBalFinal.sub(traderBalInitial));
+    expect(totalStakedInitial).to.eq(0);
     expect(rewardPerSecond).to.eq(0);
     expect(totalCzusdSpent).to.eq(0);
     expect(lockedCzusd).to.be.closeTo(parseEther("50053.4"),parseEther("0.1"));
@@ -150,7 +151,7 @@ describe("DGOD", function () {
     const totalCzusdSpent = await dgod.totalCzusdSpent();
     const traderBal = await dgod.balanceOf(trader.address);
     await dgod.connect(trader).transfer(trader1.address,traderBal);
-    const trader1Bal = await dgod.balanceOf(trader.address);
+    const trader1Bal = await dgod.balanceOf(trader1.address);
     await dgod.connect(trader1).transfer(trader.address,trader1Bal);
     const rewardPerSecond = await autoRewardPool.rewardPerSecond();
 
@@ -161,6 +162,41 @@ describe("DGOD", function () {
     expect(devWalletBalFinal.sub(devWalletBalInitial)).closeTo(parseEther("90").div(10**10),parseEther("1").div(10**10));
     expect(autoRewardPoolBalFinal.sub(autoRewardPoolBalInitial)).closeTo(parseEther("452").div(10**10),parseEther("1").div(10**10));
     expect(autoRewardPoolBalFinal.sub(autoRewardPoolBalInitial).div(86400*7)).to.be.eq(rewardPerSecond);
+    expect(rewardPerSecond).to.eq(74810);
 
-  })
+  });
+  it("Should properly set rps on second update", async function() {
+    await time.increase(1*86400);
+    await mine(1);
+    const autoRewardPoolBalInitial = await dogeCoin.balanceOf(autoRewardPool.address);
+    await dgod.performUpkeep(0);
+    await time.increase(10);
+    await mine(1);
+    const autoRewardPoolBalFinal = await dogeCoin.balanceOf(autoRewardPool.address);
+    const traderBal = await dgod.balanceOf(trader.address);
+    await dgod.connect(trader).transfer(trader1.address,traderBal);
+    const trader1Bal = await dgod.balanceOf(trader1.address);
+    await dgod.connect(trader1).transfer(trader.address,trader1Bal);
+    const rewardPerSecond = await autoRewardPool.rewardPerSecond();
+    const totalRewardsPaid = await autoRewardPool.totalRewardsPaid();
+    const traderRewardsReceived = await autoRewardPool.totalRewardsReceived(trader.address);
+    const traderRewardBal = await dogeCoin.balanceOf(trader.address);
+    const trader1RewardsReceived = await autoRewardPool.totalRewardsReceived(trader1.address);
+    const trader1RewardBal = await dogeCoin.balanceOf(trader1.address);
+    const autoRewardPoolBalPostRewards = await dogeCoin.balanceOf(autoRewardPool.address);
+    const timestampEnd = await autoRewardPool.timestampEnd();
+    const currentTime = await time.latest();
+    const traderPending = await autoRewardPool.pendingReward(trader.address);
+    const trader1Pending = await autoRewardPool.pendingReward(trader1.address);
+    expect(traderPending).to.eq(0);
+    expect(trader1Pending).to.eq(0);
+    expect(traderRewardBal).closeTo(parseEther("64").div(10**10),parseEther("1").div(10**10));
+    expect(trader1RewardBal).to.eq(164665)
+    expect(traderRewardsReceived).to.eq(traderRewardBal);
+    expect(trader1RewardsReceived).to.eq(trader1RewardBal);
+    expect(totalRewardsPaid).to.eq(traderRewardBal.add(trader1RewardBal))
+    expect(autoRewardPoolBalFinal.sub(autoRewardPoolBalInitial)).closeTo(parseEther("159").div(10**10),parseEther("1").div(10**10));
+    expect(rewardPerSecond).to.eq(90547);
+    expect(rewardPerSecond.mul(timestampEnd.sub(currentTime))).closeTo(autoRewardPoolBalPostRewards,10000000);
+  });
 });
