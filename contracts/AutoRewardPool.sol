@@ -8,6 +8,8 @@ import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./libs/IterableArrayWithoutDuplicateKeys.sol";
 
+import "hardhat/console.sol";
+
 contract AutoRewardPool is Ownable, ReentrancyGuard {
     using IterableArrayWithoutDuplicateKeys for IterableArrayWithoutDuplicateKeys.Map;
 
@@ -245,6 +247,7 @@ contract AutoRewardPool is Ownable, ReentrancyGuard {
             timestampLast = block.timestamp;
             return;
         }
+        console.log("updating rps");
         accTokenPerShare =
             accTokenPerShare +
             ((rewardPerSecond *
@@ -252,14 +255,22 @@ contract AutoRewardPool is Ownable, ReentrancyGuard {
                 PRECISION_FACTOR) / totalStaked);
         timestampLast = block.timestamp;
 
-        uint256 totalRewardsToDistribute = stakedToken.balanceOf(
+        uint256 totalRewardsToDistribute = rewardToken.balanceOf(
             address(this)
         ) +
             totalRewardsPaid +
             ((accTokenPerShare * totalStaked) / PRECISION_FACTOR);
+        console.log(
+            "stakedToken.balanceOf(this)",
+            stakedToken.balanceOf(address(this))
+        );
+        console.log("totalRewardsPaid", totalRewardsPaid);
+        console.log("accTokenPerShare", accTokenPerShare);
+        console.log("totalRewardsToDistribute", totalRewardsToDistribute);
         if (totalRewardsToDistribute > 0) {
             rewardPerSecond = totalRewardsToDistribute / period;
             timestampEnd = block.timestamp + period;
+            console.log("rps updated to", rewardPerSecond);
         }
     }
 

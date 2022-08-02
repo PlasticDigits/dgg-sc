@@ -114,6 +114,8 @@ describe("DGOD", function () {
   });
   it("Should burn 15% when buying and increase wad available", async function () {    
     await dgod.ADMIN_openTrading();
+    const totalStakedInitial = await autoRewardPool.totalStaked();
+    const traderBalInitial = await dgod.balanceOf(trader.address);
     await pcsRouter.connect(trader).swapExactTokensForTokensSupportingFeeOnTransferTokens(
         parseEther("100"),
         0,
@@ -121,12 +123,17 @@ describe("DGOD", function () {
         trader.address,
         ethers.constants.MaxUint256
     );
+    const pendingReward = await autoRewardPool.pendingReward(trader.address);
+    const rewardPerSecond = await autoRewardPool.rewardPerSecond();
+    const totalStakedFinal = await autoRewardPool.totalStaked();
     const totalCzusdSpent = await dgod.totalCzusdSpent();
     const lockedCzusd = await dgod.lockedCzusd();
     const availableWadToSend = await dgod.availableWadToSend();
     const totalSupply = await dgod.totalSupply();
-    const traderBal = await dgod.balanceOf(trader.address);
-    const lpBal = await dgod.balanceOf(dgodCzusdPair.address);
+    const traderBalFinal = await dgod.balanceOf(trader.address);
+    expect(pendingReward).to.eq(0);
+    expect(totalStakedFinal.sub(totalStakedInitial)).to.eq(traderBalFinal.sub(traderBalInitial));
+    expect(rewardPerSecond).to.eq(0);
     expect(totalCzusdSpent).to.eq(0);
     expect(lockedCzusd).to.be.closeTo(parseEther("50053.4"),parseEther("0.1"));
     expect(availableWadToSend).to.eq(lockedCzusd.sub(BASE_CZUSD_LP_WAD).sub(totalCzusdSpent));
@@ -134,17 +141,26 @@ describe("DGOD", function () {
   });
   it("Should send reward to dev wallet", async function() {
     const devWalletBalInitial = await dogeCoin.balanceOf(manager.address);
+    const autoRewardPoolBalInitial = await dogeCoin.balanceOf(autoRewardPool.address);
     const availableWadToSendInitial = await dgod.availableWadToSend();
     await dgod.performUpkeep(0);
     const devWalletBalFinal = await dogeCoin.balanceOf(manager.address);
+    const autoRewardPoolBalFinal = await dogeCoin.balanceOf(autoRewardPool.address);
     const availableWadToSendFinal = await dgod.availableWadToSend();
     const totalCzusdSpent = await dgod.totalCzusdSpent();
+    const traderBal = await dgod.balanceOf(trader.address);
+    await dgod.connect(trader).transfer(trader1.address,traderBal);
+    const trader1Bal = await dgod.balanceOf(trader.address);
+    await dgod.connect(trader1).transfer(trader.address,trader1Bal);
+    const rewardPerSecond = await autoRewardPool.rewardPerSecond();
 
     expect(totalCzusdSpent).to.eq(availableWadToSendInitial);
     expect(totalCzusdSpent).to.be.closeTo(parseEther("35.4"),parseEther("0.1"));
     expect(availableWadToSendFinal).to.eq(0);
     //dogecoin has 8 decimals, divide 18 decimals by 10*10 to get 8.
     expect(devWalletBalFinal.sub(devWalletBalInitial)).closeTo(parseEther("90").div(10**10),parseEther("1").div(10**10));
+    expect(autoRewardPoolBalFinal.sub(autoRewardPoolBalInitial)).closeTo(parseEther("452").div(10**10),parseEther("1").div(10**10));
+    expect(autoRewardPoolBalFinal.sub(autoRewardPoolBalInitial).div(86400*7)).to.be.eq(rewardPerSecond);
 
   })
 });
