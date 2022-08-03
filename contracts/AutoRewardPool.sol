@@ -39,6 +39,9 @@ contract AutoRewardPool is Ownable, ReentrancyGuard {
     uint256 public period = 7 days;
 
     address public feeDistributor;
+    address public dggLock;
+
+    mapping(address => uint256) public combinedStakedBalance;
 
     //rewards tracking
     uint256 public totalRewardsPaid;
@@ -66,13 +69,16 @@ contract AutoRewardPool is Ownable, ReentrancyGuard {
     function initialize(
         IERC20 _stakedToken,
         address _czusdPair,
-        address _feeDistributor
+        address _feeDistributor,
+        address _dggLock
     ) external onlyOwner {
         require(!isInitialized);
         isInitialized = true;
         feeDistributor = _feeDistributor;
         stakedToken = _stakedToken;
+        dggLock = _dggLock;
         isRewardExempt[_czusdPair] = true;
+        isRewardExempt[_dggLock] = true;
         isRewardExempt[msg.sender] = true;
 
         PRECISION_FACTOR = uint256(
@@ -95,6 +101,24 @@ contract AutoRewardPool is Ownable, ReentrancyGuard {
         _withdraw(_account, stakedToken.balanceOf(_account), _amount);
     }
 
+    function depositViaLock(
+        address _account,
+        uint256 _finalBal,
+        uint256 _amount
+    ) external {
+        require(msg.sender == address(dggLock), "ARP: Must be dggLock");
+        _deposit(_account, _finalBal, _amount);
+    }
+
+    function withdrawViaLock(
+        address _account,
+        uint256 _finalBal,
+        uint256 _amount
+    ) external {
+        require(msg.sender == address(dggLock), "ARP: Must be dggLock");
+        _withdraw(_account, _finalBal, _amount);
+    }
+
     function claim() external {
         _claimFor(msg.sender, false);
     }
@@ -115,7 +139,7 @@ contract AutoRewardPool is Ownable, ReentrancyGuard {
         internal
         returns (uint256 _feewad)
     {
-        uint256 accountBal = stakedToken.balanceOf(_account);
+        uint256 accountBal = combinedStakedBalance[_account];
         _updatePool();
         if (accountBal > 0) {
             uint256 pending = ((accountBal) * accTokenPerShare) /
@@ -158,6 +182,7 @@ contract AutoRewardPool is Ownable, ReentrancyGuard {
                 PRECISION_FACTOR;
             globalRewardDebt += userRewardDebt[_account];
             totalStaked += _amount;
+            combinedStakedBalance[_account] += _amount;
         }
     }
 
@@ -188,6 +213,7 @@ contract AutoRewardPool is Ownable, ReentrancyGuard {
             PRECISION_FACTOR;
         globalRewardDebt += userRewardDebt[_account];
         totalStaked -= _amount;
+        combinedStakedBalance[_account] -= _amount;
     }
 
     function setIsRewardExempt(address _for, bool _to) public {
@@ -226,12 +252,12 @@ contract AutoRewardPool is Ownable, ReentrancyGuard {
                     _getMultiplier(timestampLast, block.timestamp) *
                     PRECISION_FACTOR) / totalStaked);
             return
-                (stakedToken.balanceOf(_user) * adjustedTokenPerShare) /
+                (combinedStakedBalance[_user] * adjustedTokenPerShare) /
                 PRECISION_FACTOR -
                 userRewardDebt[_user];
         } else {
             return
-                (stakedToken.balanceOf(_user) * accTokenPerShare) /
+                (combinedStakedBalance[_user] * accTokenPerShare) /
                 PRECISION_FACTOR -
                 userRewardDebt[_user];
         }
