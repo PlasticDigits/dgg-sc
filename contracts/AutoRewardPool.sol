@@ -93,41 +93,33 @@ contract AutoRewardPool is Ownable, ReentrancyGuard {
 
     function deposit(address _account, uint256 _amount) external {
         require(msg.sender == address(stakedToken), "ARP: Must be stakedtoken");
-        _deposit(_account, stakedToken.balanceOf(_account), _amount);
+        _deposit(_account, _amount);
     }
 
     function withdraw(address _account, uint256 _amount) external {
         require(msg.sender == address(stakedToken), "ARP: Must be stakedtoken");
-        _withdraw(_account, stakedToken.balanceOf(_account), _amount);
+        _withdraw(_account, _amount);
     }
 
-    function depositViaLock(
-        address _account,
-        uint256 _finalBal,
-        uint256 _amount
-    ) external {
+    function depositViaLock(address _account, uint256 _amount) external {
         require(msg.sender == address(dggLock), "ARP: Must be dggLock");
-        _deposit(_account, _finalBal, _amount);
+        _deposit(_account, _amount);
     }
 
-    function withdrawViaLock(
-        address _account,
-        uint256 _finalBal,
-        uint256 _amount
-    ) external {
+    function withdrawViaLock(address _account, uint256 _amount) external {
         require(msg.sender == address(dggLock), "ARP: Must be dggLock");
-        _withdraw(_account, _finalBal, _amount);
+        _withdraw(_account, _amount);
     }
 
     function claim() external {
         _claimFor(msg.sender, false);
     }
 
-    function autoClaimAll() external {
+    function autoClaimAll() external onlyOwner {
         autoClaim(0, autoclaimAccounts.size());
     }
 
-    function autoClaim(uint256 _startIndex, uint256 _count) public {
+    function autoClaim(uint256 _startIndex, uint256 _count) public onlyOwner {
         uint256 feewad;
         for (uint256 i = _startIndex; i < _startIndex + _count; i++) {
             feewad += _claimFor(autoclaimAccounts.getKeyAtIndex(i), true);
@@ -159,16 +151,13 @@ contract AutoRewardPool is Ownable, ReentrancyGuard {
         }
     }
 
-    function _deposit(
-        address _account,
-        uint256 _accountBal,
-        uint256 _amount
-    ) internal {
+    function _deposit(address _account, uint256 _amount) internal {
         if (isRewardExempt[_account]) return;
         if (_amount == 0) return;
         _updatePool();
-        if (_accountBal > 0) {
-            uint256 pending = ((_accountBal - _amount) * accTokenPerShare) /
+        if (combinedStakedBalance[_account] > 0) {
+            uint256 pending = (combinedStakedBalance[_account] *
+                accTokenPerShare) /
                 PRECISION_FACTOR -
                 userRewardDebt[_account];
             if (pending > 0) {
@@ -176,30 +165,26 @@ contract AutoRewardPool is Ownable, ReentrancyGuard {
                 totalRewardsPaid += pending;
                 totalRewardsReceived[_account] += pending;
             }
-            globalRewardDebt -= userRewardDebt[_account];
-            userRewardDebt[_account] =
-                (_accountBal * accTokenPerShare) /
-                PRECISION_FACTOR;
-            globalRewardDebt += userRewardDebt[_account];
-            totalStaked += _amount;
-            combinedStakedBalance[_account] += _amount;
         }
+        globalRewardDebt -= userRewardDebt[_account];
+        combinedStakedBalance[_account] += _amount;
+        userRewardDebt[_account] =
+            (combinedStakedBalance[_account] * accTokenPerShare) /
+            PRECISION_FACTOR;
+        globalRewardDebt += userRewardDebt[_account];
+        totalStaked += _amount;
     }
 
     /*
      * @notice Withdraw staked tokens and collect reward tokens
      * @param _amount: amount to withdraw (in rewardToken)
      */
-    function _withdraw(
-        address _account,
-        uint256 _accountBal,
-        uint256 _amount
-    ) internal {
+    function _withdraw(address _account, uint256 _amount) internal {
         if (isRewardExempt[_account]) return;
         if (_amount == 0) return;
         _updatePool();
 
-        uint256 pending = ((_accountBal + _amount) * accTokenPerShare) /
+        uint256 pending = (combinedStakedBalance[_account] * accTokenPerShare) /
             PRECISION_FACTOR -
             userRewardDebt[_account];
         if (pending > 0) {
@@ -208,21 +193,20 @@ contract AutoRewardPool is Ownable, ReentrancyGuard {
             totalRewardsReceived[_account] += pending;
         }
         globalRewardDebt -= userRewardDebt[_account];
+        combinedStakedBalance[_account] -= _amount;
         userRewardDebt[_account] =
-            (_accountBal * accTokenPerShare) /
+            (combinedStakedBalance[_account] * accTokenPerShare) /
             PRECISION_FACTOR;
         globalRewardDebt += userRewardDebt[_account];
         totalStaked -= _amount;
-        combinedStakedBalance[_account] -= _amount;
     }
 
-    function setIsRewardExempt(address _for, bool _to) public {
+    function setIsRewardExempt(address _for, bool _to) public onlyOwner {
         if (isRewardExempt[_for] == _to) return;
         if (_to) {
-            _withdraw(_for, 0, stakedToken.balanceOf(_for));
+            _withdraw(_for, combinedStakedBalance[_for]);
         } else {
-            uint256 amount = stakedToken.balanceOf(_for);
-            _deposit(_for, amount, amount);
+            _deposit(_for, combinedStakedBalance[_for]);
         }
         isRewardExempt[_for] = _to;
     }

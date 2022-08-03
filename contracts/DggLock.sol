@@ -17,6 +17,9 @@ contract DggLock is Ownable {
     IERC20 public DGG;
     AutoRewardPool public autoRewardPool;
 
+    uint256 public preUnlockClaimBasis = 2000;
+    uint256 public postUnlockClaimBasis = 4000;
+
     mapping(address => uint256) public accountDggInitial;
     mapping(address => uint256) public accountDggClaimed;
 
@@ -48,11 +51,7 @@ contract DggLock is Ownable {
         );
         for (uint256 i; i < _accounts.length; i++) {
             accountDggInitial[_accounts[i]] += _wads[i];
-            autoRewardPool.depositViaLock(
-                _accounts[i],
-                vestBalanceOf(_accounts[i]),
-                _wads[i]
-            );
+            autoRewardPool.depositViaLock(_accounts[i], _wads[i]);
             dggToVest += _wads[i];
         }
         DGG.transferFrom(msg.sender, address(this), dggToVest);
@@ -61,11 +60,7 @@ contract DggLock is Ownable {
     function claimDgg() external {
         uint256 dggWad = accountDggClaimable(msg.sender);
         accountDggClaimed[msg.sender] += dggWad;
-        autoRewardPool.withdrawViaLock(
-            msg.sender,
-            vestBalanceOf(msg.sender),
-            dggWad
-        );
+        autoRewardPool.withdrawViaLock(msg.sender, dggWad);
         DGG.transfer(msg.sender, dggWad);
     }
 
@@ -79,9 +74,14 @@ contract DggLock is Ownable {
             return accountDggInitial[_for] - accountDggClaimed[_for];
         }
         if (firstUnlockEpoch <= block.timestamp) {
-            return (accountDggInitial[_for] / 2) - accountDggClaimed[_for];
+            return
+                ((accountDggInitial[_for] *
+                    (postUnlockClaimBasis + preUnlockClaimBasis)) / 10000) -
+                accountDggClaimed[_for];
         }
-        return 0;
+        return
+            ((accountDggInitial[_for] * preUnlockClaimBasis) / 10000) -
+            accountDggClaimed[_for];
     }
 
     function withdrawToken(IERC20 _token, address _to) external onlyOwner {

@@ -265,8 +265,8 @@ describe("DGOD", function () {
     const secondUnlockEpoch = await dggLock.secondUnlockEpoch();
     const lockBal = await dgod.balanceOf(dggLock.address);
 
-    expect(vestor1DggClaimable).to.eq(0);
-    expect(vestor2DggClaimable).to.eq(0);
+    expect(vestor1DggClaimable).to.eq(parseEther("100000000"));
+    expect(vestor2DggClaimable).to.eq(parseEther("200000000"));
     expect(vestor1DogeClaimable).to.eq(0);
     expect(vestor2DogeClaimable).to.eq(0);
     expect(vestor1DggInitial).to.eq(parseEther("500000000"));
@@ -301,7 +301,6 @@ describe("DGOD", function () {
     const trader2Pending = await autoRewardPool.pendingReward(trader2.address);
     const vestor1LockPending = await autoRewardPool.pendingReward(vestor1.address);
     const vestor2LockPending = await autoRewardPool.pendingReward(vestor2.address);
-    console.log(vestor1LockPending.toString(),vestor2LockPending.toString(),trader1Pending.toString(),trader2Pending.toString())
     expect(rewardPerSecond).to.eq(48126);
     expect(traderPending).to.eq(0);
     expect(trader1Pending).to.eq(0);
@@ -324,7 +323,7 @@ describe("DGOD", function () {
 
     const vestor1DogeBal = await dogeCoin.balanceOf(vestor1.address);
     const vestor2DogeBal = await dogeCoin.balanceOf(vestor2.address);
-    
+
     expect(vestor1LockPendingInitial).closeTo(parseEther("162").div(10**10),parseEther("1").div(10**10));
     expect(vestor2LockPendingInitial).closeTo(parseEther("325").div(10**10),parseEther("1").div(10**10));
     expect(vestor1DogeBal).to.eq(vestor1LockPendingInitial);
@@ -332,5 +331,25 @@ describe("DGOD", function () {
     expect(vestor1LockPendingFinal).to.eq(0);
     expect(vestor2LockPendingFinal).to.eq(0);
 
+  });
+  it("DggLock: Should send 20% dgod before first epoch", async function() {
+    await dggLock.connect(vestor1).claimDgg();
+    const vestor1Bal = await dgod.balanceOf(vestor1.address);
+    expect(vestor1Bal).to.eq(parseEther("100000000"));
+  });
+  it("DggLock: Should send 40% dgod after first epoch before second epoch", async function() {
+    await time.increase(2*86400);
+    await dggLock.connect(vestor1).claimDgg();
+    const vestor1Bal = await dgod.balanceOf(vestor1.address);
+    expect(vestor1Bal).to.eq(parseEther("300000000"));
+  });
+  it("DggLock: Should send remaining dgod after second epoch", async function() {
+    await time.increase(2*86400);
+    await dggLock.connect(vestor1).claimDgg();
+    await dggLock.connect(vestor2).claimDgg();
+    const vestor1Bal = await dgod.balanceOf(vestor1.address);
+    const vestor2Bal = await dgod.balanceOf(vestor2.address);
+    expect(vestor1Bal).to.eq(parseEther("500000000"));
+    expect(vestor2Bal).to.eq(parseEther("1000000000"));
   });
 });
