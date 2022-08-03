@@ -25,11 +25,11 @@ const DEPLOYER = "0x70e1cB759996a1527eD1801B169621C18a9f38F9";
 
 
 describe("DGOD", function () {
-  let owner, manager, trader, trader1, trader2, trader3, feeDistributor;
+  let owner, manager, trader, trader1, trader2, trader3, feeDistributor, vestor1, vestor2;
   let deployer;
-  let dgod, czusd, busd, dogeCoin, pcsRouter, dgodCzusdPair, autoRewardPool;
+  let dgod, czusd, busd, dogeCoin, pcsRouter, dgodCzusdPair, autoRewardPool, dggLock;
   before(async function() {
-    [owner, manager, trader, trader1, trader2, trader3, feeDistributor] = await ethers.getSigners();
+    [owner, manager, trader, trader1, trader2, trader3, feeDistributor,  vestor1, vestor2] = await ethers.getSigners();
     await impersonateAccount(DEPLOYER);
     deployer = await ethers.getSigner(DEPLOYER);
 
@@ -228,11 +228,56 @@ describe("DGOD", function () {
     const traderPending = await autoRewardPool.pendingReward(trader.address);
     const trader1Pending = await autoRewardPool.pendingReward(trader1.address);
     const trader2Pending = await autoRewardPool.pendingReward(trader2.address);
-    console.log(rewardPerSecond.toString(),traderPending.toString(),trader1Pending.toString(),trader2Pending.toString());
+    
     expect(rewardPerSecond).to.eq(114076);
     expect(traderPending).to.eq(0);
     expect(trader1Pending).to.eq(0);
     expect(trader2Pending).closeTo(parseEther("51").div(10**10),parseEther("1").div(10**10));
     expect(rewardPerSecond.mul(timestampEnd.sub(currentTimeFinal))).closeTo(autoRewardPoolBalPostRewards.sub(trader2Pending),10000000);
+  });
+  it("DggLock: should deploy", async function() {
+    const DggLock = await ethers.getContractFactory("DggLock");
+    dggLock = await DggLock.deploy(
+      dogeCoin.address,
+      dgod.address,
+      autoRewardPool.address);
+    await dgod.MANAGER_setIsExempt(dggLock.address,true);
+    
+    const dggLockDogeAddress = await dggLock.DOGE();
+    const dggLockDGGAddress = await dggLock.DGG();
+    const dggLockautoRewardPoolAddress = await dggLock.autoRewardPool();
+    expect(dggLockDogeAddress).to.eq(dogeCoin.address);
+    expect(dggLockDGGAddress).to.eq(dgod.address);
+    expect(dggLockautoRewardPoolAddress).to.eq(autoRewardPool.address);
+  });
+  it("DggLock: should accept vestors", async function() {
+    const currentTime = await time.latest();
+    await dggLock.setVestSchedule(currentTime+86400*1,currentTime+86400*2);
+    await dgod.approve(dggLock.address,ethers.constants.MaxUint256);
+    const ownerBal = await dgod.balanceOf(owner.address);
+    await dggLock.setAccountDgg([vestor1.address,vestor2.address],[parseEther("500000000"),parseEther("1000000000")]);
+
+    const vestor1DggInitial = await dggLock.accountDggInitial(vestor1.address);
+    const vestor2DggInitial = await dggLock.accountDggInitial(vestor2.address);
+    const vestor1DggClaimable = await dggLock.accountDggClaimable(vestor1.address);
+    const vestor2DggClaimable = await dggLock.accountDggClaimable(vestor2.address);
+    const vestor1DogeClaimable = await dggLock.accountDogeClaimable(vestor1.address);
+    const vestor2DogeClaimable = await dggLock.accountDogeClaimable(vestor2.address);
+    const dggVestInitial = await dggLock.dggVestInitial();
+    const firstUnlockEpoch = await dggLock.firstUnlockEpoch();
+    const secondUnlockEpoch = await dggLock.secondUnlockEpoch();
+    const lockBal = await dgod.balanceOf(dggLock.address);
+
+    expect(vestor1DggClaimable).to.eq(0);
+    expect(vestor2DggClaimable).to.eq(0);
+    expect(vestor1DogeClaimable).to.eq(0);
+    expect(vestor2DogeClaimable).to.eq(0);
+    expect(vestor1DggInitial).to.eq(parseEther("500000000"));
+    expect(vestor2DggInitial).to.eq(parseEther("1000000000"));
+    expect(dggVestInitial).to.eq(parseEther("1500000000"));
+    expect(lockBal).to.eq(parseEther("1500000000"));
+    expect(firstUnlockEpoch).to.eq(currentTime+86400*1);
+    expect(secondUnlockEpoch).to.eq(currentTime+86400*2);
+
   });
 });

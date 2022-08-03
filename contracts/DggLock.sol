@@ -10,7 +10,6 @@ import "./interfaces/IAmmRouter02.sol";
 import "./AutoRewardPool.sol";
 
 contract DggLock is Ownable {
-    using IterableArrayWithoutDuplicateKeys for IterableArrayWithoutDuplicateKeys.Map;
     using SafeERC20 for IERC20;
 
     uint256 public dggVestInitial;
@@ -23,7 +22,6 @@ contract DggLock is Ownable {
     IERC20 public DGG;
     AutoRewardPool public autoRewardPool;
 
-    IterableArrayWithoutDuplicateKeys.Map trackedAddresses;
     mapping(address => uint256) public accountDggInitial;
     mapping(address => uint256) public accountDggClaimed;
     mapping(address => uint256) public accountDogeClaimed;
@@ -60,32 +58,24 @@ contract DggLock is Ownable {
             accountDggInitial[_accounts[i]] += _wad;
             dggVestInitial += _wad;
         }
-        DGG.transfer(address(this), dggVestInitial - preDggVesting);
+        DGG.transferFrom(
+            msg.sender,
+            address(this),
+            dggVestInitial - preDggVesting
+        );
     }
 
-    function claimDggFors(address[] calldata _fors) external {
-        for (uint256 i; i < _fors.length; i++) {
-            claimDggFor(_fors[i]);
-        }
+    function claimDgg() external {
+        uint256 dggWad = accountDggClaimable(msg.sender);
+        accountDggClaimed[msg.sender] += dggWad;
+        DGG.transfer(msg.sender, dggWad);
     }
 
-    function claimDggFor(address _for) public {
-        uint256 dggWad = accountDggClaimable(_for);
-        accountDggClaimed[_for] += dggWad;
-        DGG.transfer(_for, dggWad);
-    }
-
-    function claimDogeFors(address[] calldata _fors) external {
-        for (uint256 i; i < _fors.length; i++) {
-            claimDogeFor(_fors[i]);
-        }
-    }
-
-    function claimDogeFor(address _for) public {
+    function claimDoge() public {
         updateTotalDogeRewards();
-        uint256 dogeWad = accountDogeClaimable(_for);
-        accountDogeClaimed[_for] += dogeWad;
-        DOGE.transfer(_for, dogeWad);
+        uint256 dogeWad = accountDogeClaimable(msg.sender);
+        accountDogeClaimed[msg.sender] += dogeWad;
+        DOGE.transfer(msg.sender, dogeWad);
         lastDogeCheckBal = DOGE.balanceOf(address(this));
     }
 
@@ -94,7 +84,6 @@ contract DggLock is Ownable {
         uint256 dogeSinceLastCheckBal = DOGE.balanceOf(address(this)) -
             lastDogeCheckBal;
         totalDogeRewards += dogeSinceLastCheckBal;
-        lastDogeCheckBal = DOGE.balanceOf(address(this));
     }
 
     function accountDggClaimable(address _for)
