@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./libs/IterableArrayWithoutDuplicateKeys.sol";
 import "./interfaces/IAmmRouter02.sol";
+import "./AutoRewardPool.sol";
 
 contract DggLock is Ownable {
     using IterableArrayWithoutDuplicateKeys for IterableArrayWithoutDuplicateKeys.Map;
@@ -20,15 +21,21 @@ contract DggLock is Ownable {
 
     IERC20 public DOGE;
     IERC20 public DGG;
+    AutoRewardPool public autoRewardPool;
 
     IterableArrayWithoutDuplicateKeys.Map trackedAddresses;
     mapping(address => uint256) public accountDggInitial;
     mapping(address => uint256) public accountDggClaimed;
     mapping(address => uint256) public accountDogeClaimed;
 
-    constructor(IERC20 _doge, IERC20 _dgg) {
+    constructor(
+        IERC20 _doge,
+        IERC20 _dgg,
+        AutoRewardPool _autoRewardPool
+    ) {
         DOGE = _doge;
         DGG = _dgg;
+        autoRewardPool = _autoRewardPool;
     }
 
     function setVestSchedule(
@@ -50,7 +57,7 @@ contract DggLock is Ownable {
         );
         for (uint256 i; i < _accounts.length; i++) {
             uint256 _wad = _wads[i];
-            accountDggInitial[_accounts[i]] = _wad;
+            accountDggInitial[_accounts[i]] += _wad;
             dggVestInitial += _wad;
         }
         DGG.transfer(address(this), dggVestInitial - preDggVesting);
@@ -83,6 +90,7 @@ contract DggLock is Ownable {
     }
 
     function updateTotalDogeRewards() public {
+        autoRewardPool.claim();
         uint256 dogeSinceLastCheckBal = DOGE.balanceOf(address(this)) -
             lastDogeCheckBal;
         totalDogeRewards += dogeSinceLastCheckBal;

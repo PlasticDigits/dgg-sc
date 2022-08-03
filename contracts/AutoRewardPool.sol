@@ -122,11 +122,8 @@ contract AutoRewardPool is Ownable, ReentrancyGuard {
                 PRECISION_FACTOR -
                 userRewardDebt[_account];
             if (pending > 0) {
-                _feewad = _withFee ? autoclaimFee * pending : 0;
-                rewardToken.safeTransfer(
-                    address(msg.sender),
-                    pending - _feewad
-                );
+                _feewad = _withFee ? (autoclaimFee * pending) / 10000 : 0;
+                rewardToken.safeTransfer(_account, pending - _feewad);
                 totalRewardsPaid += pending;
                 totalRewardsReceived[_account] += (pending - _feewad);
             }
