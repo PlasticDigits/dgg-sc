@@ -199,4 +199,40 @@ describe("DGOD", function () {
     expect(rewardPerSecond).to.eq(90547);
     expect(rewardPerSecond.mul(timestampEnd.sub(currentTime))).closeTo(autoRewardPoolBalPostRewards,10000000);
   });
+  it("Should properly set pending rewards with third trader and third update", async function() {
+    await czusd.connect(deployer).mint(trader2.address,parseEther("10000"));
+    await czusd.connect(trader2).approve(pcsRouter.address,ethers.constants.MaxUint256);
+    await pcsRouter.connect(trader2).swapExactTokensForTokensSupportingFeeOnTransferTokens(
+        parseEther("100"),
+        0,
+        [czusd.address,dgod.address],
+        trader2.address,
+        ethers.constants.MaxUint256
+    );
+    const currentTimeInitial = await time.latest();
+    await time.increase(1*86400);
+    await mine(1);
+    const currentTimeMiddle = await time.latest();
+    const autoRewardPoolBalInitial = await dogeCoin.balanceOf(autoRewardPool.address);
+    await dgod.performUpkeep(0);
+    const autoRewardPoolBalFinal = await dogeCoin.balanceOf(autoRewardPool.address);
+    const traderBal = await dgod.balanceOf(trader.address);
+    await dgod.connect(trader).transfer(trader1.address,traderBal);
+    const trader1Bal = await dgod.balanceOf(trader1.address);
+    await dgod.connect(trader1).transfer(trader.address,trader1Bal);
+    const rewardPerSecond = await autoRewardPool.rewardPerSecond();
+    const totalRewardsPaid = await autoRewardPool.totalRewardsPaid();
+    const autoRewardPoolBalPostRewards = await dogeCoin.balanceOf(autoRewardPool.address);
+    const currentTimeFinal = await time.latest();
+    const timestampEnd = await autoRewardPool.timestampEnd();
+    const traderPending = await autoRewardPool.pendingReward(trader.address);
+    const trader1Pending = await autoRewardPool.pendingReward(trader1.address);
+    const trader2Pending = await autoRewardPool.pendingReward(trader2.address);
+    console.log(rewardPerSecond.toString(),traderPending.toString(),trader1Pending.toString(),trader2Pending.toString());
+    expect(rewardPerSecond).to.eq(114076);
+    expect(traderPending).to.eq(0);
+    expect(trader1Pending).to.eq(0);
+    expect(trader2Pending).closeTo(parseEther("51").div(10**10),parseEther("1").div(10**10));
+    expect(rewardPerSecond.mul(timestampEnd.sub(currentTimeFinal))).closeTo(autoRewardPoolBalPostRewards.sub(trader2Pending),10000000);
+  });
 });
