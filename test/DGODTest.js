@@ -310,7 +310,27 @@ describe("DGOD", function () {
     expect(vestor2LockPending).closeTo(parseEther("325").div(10**10),parseEther("1").div(10**10));
     expect(rewardPerSecond.mul(timestampEnd.sub(currentTimeFinal))).closeTo(autoRewardPoolBalPostRewards.sub(trader2Pending).sub(vestor2LockPending).sub(vestor1LockPending),10000000);
   });
-  it("DggLock: Should update rewards", async function() {
+  it("DggLock: Should claim rewards for vestor", async function() {
+
+    const rewardPerSecond = await autoRewardPool.rewardPerSecond();
+
+    const vestor1LockPendingInitial = await autoRewardPool.pendingReward(vestor1.address);
+    await autoRewardPool.connect(vestor1).claim();
+    const vestor1LockPendingFinal = await autoRewardPool.pendingReward(vestor1.address);
+
+    const vestor2LockPendingInitial = await autoRewardPool.pendingReward(vestor2.address);
+    await autoRewardPool.connect(vestor2).claim();
+    const vestor2LockPendingFinal = await autoRewardPool.pendingReward(vestor2.address);
+
+    const vestor1DogeBal = await dogeCoin.balanceOf(vestor1.address);
+    const vestor2DogeBal = await dogeCoin.balanceOf(vestor2.address);
+    
+    expect(vestor1LockPendingInitial).closeTo(parseEther("162").div(10**10),parseEther("1").div(10**10));
+    expect(vestor2LockPendingInitial).closeTo(parseEther("325").div(10**10),parseEther("1").div(10**10));
+    expect(vestor1DogeBal).to.eq(vestor1LockPendingInitial);
+    expect(vestor2DogeBal).to.eq(vestor2LockPendingInitial);
+    expect(vestor1LockPendingFinal).to.eq(0);
+    expect(vestor2LockPendingFinal).to.eq(0);
 
   });
 });
